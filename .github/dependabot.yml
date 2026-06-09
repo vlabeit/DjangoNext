@@ -67,28 +67,18 @@ updates:
     schedule:
       interval: 'daily'
 
+  # >>> TEMPLATE:UV <<<
   # Backend Python deps (uv) — pyproject.toml lives in backend/.
   #
-  # DISABLED ON THE TEMPLATE: backend/pyproject.toml carries the unrendered
-  # `name = "__PROJECT_SLUG__"` placeholder, which is not a valid PEP 508 name
-  # (it starts/ends with underscores). Dependabot's uv parser rejects it with
-  # "Dependabot can't parse your pyproject.toml" and the update job errors.
-  # `uv` itself is lenient (uv.lock exists), but Dependabot is strict.
+  # Shipped DISABLED on the template: backend/pyproject.toml still holds the
+  # unrendered project-name placeholder, which is not a valid PEP 508 name, so
+  # Dependabot's uv parser fails ("Dependabot can't parse your pyproject.toml").
+  # uv itself is lenient (uv.lock exists), but Dependabot is strict.
   #
-  # RE-ENABLE after bootstrapping with install.py: the token pass renders a
-  # valid project name, so the rendered pyproject.toml parses and uv updates
-  # work. Uncomment the block below in your generated project.
-  #
-  # - package-ecosystem: 'uv'
-  #   directory: '/backend'
-  #   # Every weekday
-  #   schedule:
-  #     interval: 'daily'
-  #   groups:
-  #     python:
-  #       update-types:
-  #         - 'minor'
-  #         - 'patch'
+  # install.py replaces this whole region with the active uv updater at
+  # bootstrap, once a valid project name has been rendered. To enable it by hand
+  # instead, replace this region with a 'uv' updater for directory '/backend'.
+  # >>> TEMPLATE:UV:END <<<
 
   # Frontend JS deps (pnpm) — package.json / pnpm-lock.yaml live in frontend/.
   - package-ecosystem: 'npm'

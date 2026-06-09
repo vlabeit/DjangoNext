@@ -438,6 +438,65 @@ def strip_marked_region(path: Path, name: str) -> None:
     path.write_text("".join(out), encoding="utf-8")
 
 
+# The active backend uv Dependabot updater, injected into .github/dependabot.yml
+# at bootstrap by enable_dependabot_uv. The template ships this updater off
+# (commented inside a TEMPLATE:UV region) because Dependabot's uv parser can't
+# read backend/pyproject.toml while it still holds the unrendered project-name
+# placeholder. Indentation matches the other updaters (2-space list entry).
+DEPENDABOT_UV_BLOCK = """\
+  - package-ecosystem: 'uv'
+    directory: '/backend'
+    # Every weekday
+    schedule:
+      interval: 'daily'
+    groups:
+      python:
+        update-types:
+          - 'minor'
+          - 'patch'"""
+
+
+def enable_dependabot_uv(path: Path) -> None:
+    """Activate the backend uv Dependabot updater in a bootstrapped project.
+
+    The committed template keeps the uv updater out of its active config: while
+    backend/pyproject.toml still holds the unrendered project-name placeholder
+    (not a valid PEP 508 name), Dependabot's uv parser fails with "Dependabot
+    can't parse your pyproject.toml". The template carries a commented
+    '# >>> TEMPLATE:UV <<<' region in the updater's place instead.
+
+    Once the token pass has rendered a valid project name, this swaps that whole
+    region (markers and explanatory comments included) for the active uv updater
+    block, so the generated project gets backend Python updates with no manual
+    step.
+
+    No-op if the file or the start marker is absent (tolerant of re-runs and of
+    a config that already enabled the updater). Raises on an unclosed marker.
+    """
+    if not path.exists():
+        return
+    text = path.read_text(encoding="utf-8")
+    start = "# >>> TEMPLATE:UV <<<"
+    end = "# >>> TEMPLATE:UV:END <<<"
+    if start not in text:
+        return
+    if end not in text:
+        raise ValueError(
+            f"Unclosed TEMPLATE:UV marker in {path}: the start marker has no "
+            f"matching ':END' marker."
+        )
+    pattern = re.compile(
+        r"[ \t]*" + re.escape(start) + r".*?" + re.escape(end),
+        re.DOTALL,
+    )
+    # lambda replacement: DEPENDABOT_UV_BLOCK is treated literally (no backref
+    # interpretation of any '\' / '\g' it might contain).
+    path.write_text(
+        pattern.sub(lambda _m: DEPENDABOT_UV_BLOCK, text, count=1),
+        encoding="utf-8",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Media-serving infrastructure (production compose + Traefik)
 # ---------------------------------------------------------------------------
@@ -1445,6 +1504,10 @@ def run_bootstrap(
     # Drop the template-only CI bootstrap steps: a generated project's CI runs
     # its checks directly (there is no template left to bootstrap).
     strip_marked_region(repo_root / ".github" / "workflows" / "ci.yml", "TEMPLATE:CI")
+    # Activate the backend uv Dependabot updater. It ships disabled on the
+    # template (the unrendered project name breaks Dependabot's pyproject
+    # parser); the token pass above has now rendered a valid name.
+    enable_dependabot_uv(repo_root / ".github" / "dependabot.yml")
 
     # Step 7: Generate env files + secrets from the committed .example seeds.
     generate_env_files(repo_root, media, domain=answers.get("__DOMAIN__", ""))

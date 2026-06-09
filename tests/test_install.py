@@ -1677,6 +1677,62 @@ class TestStripMarkedRegion:
             install.strip_marked_region(p, "TEMPLATE:CI")
 
 
+class TestEnableDependabotUv:
+    """enable_dependabot_uv swaps the commented '# >>> TEMPLATE:UV <<<' region
+    for the active backend uv updater. The template ships the updater off
+    (Dependabot can't parse pyproject.toml while it holds the unrendered
+    project-name placeholder); bootstrap turns it back on."""
+
+    _REGION = (
+        "  - package-ecosystem: 'npm'\n"
+        "    directory: '/frontend'\n"
+        "\n"
+        "  # >>> TEMPLATE:UV <<<\n"
+        "  # Disabled on the template — install.py activates this at bootstrap.\n"
+        "  # >>> TEMPLATE:UV:END <<<\n"
+    )
+
+    def test_replaces_region_with_active_updater(self, tmp_path):
+        p = tmp_path / "dependabot.yml"
+        p.write_text("version: 2\nupdates:\n" + self._REGION)
+        install.enable_dependabot_uv(p)
+        out = p.read_text()
+        assert "TEMPLATE:UV" not in out, "markers left behind"
+        assert re.search(
+            r"(?m)^  - package-ecosystem: 'uv'$", out
+        ), "uv updater not activated"
+        assert "directory: '/backend'" in out
+        # The neighbouring updater is left untouched.
+        assert "package-ecosystem: 'npm'" in out
+
+    def test_no_markers_is_noop(self, tmp_path):
+        p = tmp_path / "dependabot.yml"
+        original = (
+            "version: 2\nupdates:\n"
+            "  - package-ecosystem: 'npm'\n    directory: '/frontend'\n"
+        )
+        p.write_text(original)
+        install.enable_dependabot_uv(p)
+        assert p.read_text() == original
+
+    def test_missing_file_is_noop(self, tmp_path):
+        install.enable_dependabot_uv(tmp_path / "nope.yml")  # no raise
+
+    def test_unclosed_marker_raises(self, tmp_path):
+        p = tmp_path / "dependabot.yml"
+        p.write_text("updates:\n  # >>> TEMPLATE:UV <<<\n  # body\n")  # no :END
+        with pytest.raises(ValueError):
+            install.enable_dependabot_uv(p)
+
+    def test_idempotent_after_enable(self, tmp_path):
+        p = tmp_path / "dependabot.yml"
+        p.write_text("version: 2\nupdates:\n" + self._REGION)
+        install.enable_dependabot_uv(p)
+        once = p.read_text()
+        install.enable_dependabot_uv(p)  # markers gone → second call is a no-op
+        assert p.read_text() == once
+
+
 class TestSecurityHeaderOwnership:
     """X-Frame-Options: one consistent DENY policy across edge + Django.
 
@@ -1833,6 +1889,16 @@ class TestRealTemplateBootstrapLocal:
         assert "TEMPLATE:CI" not in ci, "CI markers left in the generated project"
         assert "install.py" not in ci, "template bootstrap step left in generated CI"
         assert "Bootstrap template into a real project" not in ci
+
+    def test_uv_dependabot_enabled(self, repo):
+        # The template ships the backend uv updater disabled (its placeholder
+        # project name breaks Dependabot's pyproject parser); bootstrap renders a
+        # valid name and activates it, leaving no TEMPLATE:UV markers behind.
+        dependabot = (repo / ".github/dependabot.yml").read_text()
+        assert "TEMPLATE:UV" not in dependabot, "TEMPLATE:UV markers left behind"
+        assert re.search(
+            r"(?m)^  - package-ecosystem: 'uv'$", dependabot
+        ), "backend uv updater not activated at bootstrap"
 
 
 # ---------------------------------------------------------------------------
