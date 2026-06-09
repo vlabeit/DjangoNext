@@ -1,0 +1,53 @@
+# Traefik STATIC configuration.
+# Routers/services/middlewares live in the DYNAMIC config (./dynamic.yml,
+# loaded via the file provider below). Keep this file free of routing.
+log:
+  level: INFO
+
+accessLog:
+  filePath: /var/log/traefik/access.log
+  bufferingSize: 100
+
+entryPoints:
+  web:
+    # http -> https
+    address: ':80'
+    http:
+      # https://doc.traefik.io/traefik/routing/entrypoints/#entrypoint
+      redirections:
+        entryPoint:
+          to: web-secure
+          scheme: https
+
+  web-secure:
+    # https
+    address: ':443'
+    forwardedHeaders:
+      trustedIPs:
+        - '127.0.0.1/32'
+        - '10.0.0.0/8'
+        - '172.16.0.0/12'
+        - '192.168.0.0/16'
+
+  flower:
+    address: ':5555'
+
+certificatesResolvers:
+  letsencrypt:
+    # https://doc.traefik.io/traefik/https/acme/#lets-encrypt
+    acme:
+      # Placeholder substituted at image build time from the TRAEFIK_ACME_EMAIL
+      # build arg (see compose + the traefik Dockerfile). Do not hardcode here.
+      email: '__ACME_EMAIL__'
+      storage: /etc/traefik/acme/acme.json
+      # https://doc.traefik.io/traefik/https/acme/#httpchallenge
+      httpChallenge:
+        entryPoint: web
+
+providers:
+  # https://doc.traefik.io/traefik/master/providers/file/
+  # Dynamic config is watched from a directory so routers can be split into
+  # multiple files later without touching this static config.
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true

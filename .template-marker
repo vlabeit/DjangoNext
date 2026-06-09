@@ -1,0 +1,4 @@
+# This file marks the repository root as an un-bootstrapped DjangoNext template.
+# install.py refuses to run without it (a safety guard against running outside a
+# template root) and deletes it on a successful bootstrap. Do not remove it from
+# the template itself — a fresh clone needs it for `python3 install.py` to run.

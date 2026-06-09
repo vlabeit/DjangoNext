@@ -1,0 +1,186 @@
+volumes:
+  production_postgres_data: {}
+  production_postgres_data_backups: {}
+  production_traefik: {}
+  production_traefik_logs: {}
+  production_redis_data: {}
+  # >>> TEMPLATE:MEDIA:VOLUME <<<
+  # >>> TEMPLATE:MEDIA:VOLUME:END <<<
+
+# Two networks (defense-in-depth): `backend` carries the data stores and the
+# services that use them; `web` carries only traefik-fronted HTTP. Postgres and
+# redis are never on `web`, so the edge cannot reach them. django and flower sit
+# on both (they serve HTTP and need the data stores).
+networks:
+  backend: {}
+  web: {}
+
+services:
+  django: &django
+    build:
+      context: ./backend/
+      dockerfile: ./compose/production/django/Dockerfile
+
+    image: __PROJECT_SLUG___production_django
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./backend/.envs/.production/.django
+      - ./backend/.envs/.production/.postgres
+    restart: unless-stopped
+    networks: [backend, web]   # anchor value: celery* override to [backend], flower inherits both
+    command: /start
+    # >>> TEMPLATE:MEDIA:MOUNT <<<
+    # >>> TEMPLATE:MEDIA:MOUNT:END <<<
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          'import os,http.client; h=(os.environ.get("DJANGO_ALLOWED_HOSTS","") or "localhost").split(",")[0].strip().lstrip(".") or "localhost"; c=http.client.HTTPConnection("127.0.0.1",5000,timeout=5); c.request("GET","/",headers={"Host":h}); r=c.getresponse(); exit(0 if r.status<500 else 1)',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  postgres:
+    build:
+      context: ./backend/
+      dockerfile: ./compose/production/postgres/Dockerfile
+    image: __PROJECT_SLUG___production_postgres
+    volumes:
+      - production_postgres_data:/var/lib/postgresql/18/docker
+      - production_postgres_data_backups:/backups
+    env_file:
+      - ./backend/.envs/.production/.postgres
+    restart: unless-stopped
+    networks: [backend]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  traefik:
+    build:
+      context: ./backend/
+      dockerfile: ./compose/production/traefik/Dockerfile
+      args:
+        # ACME registration email for Let's Encrypt, baked into traefik.yml at
+        # build time (Traefik does not interpolate env vars in its static config).
+        # Override per environment: export TRAEFIK_ACME_EMAIL=ops@example.com
+        TRAEFIK_ACME_EMAIL: ${TRAEFIK_ACME_EMAIL:-__AUTHOR_EMAIL__}
+    image: __PROJECT_SLUG___production_traefik
+    depends_on:
+      django:
+        condition: service_healthy
+      next:
+        condition: service_healthy
+    volumes:
+      - production_traefik:/etc/traefik/acme
+      - production_traefik_logs:/var/log/traefik
+    restart: unless-stopped
+    networks: [web]
+    ports:
+      - '0.0.0.0:80:80'
+      - '0.0.0.0:443:443'
+      - '127.0.0.1:5555:5555'
+
+  redis:
+    image: docker.io/redis:8.8.0
+    restart: unless-stopped
+    volumes:
+      - production_redis_data:/data
+    networks: [backend]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  celeryworker:
+    <<: *django
+    image: __PROJECT_SLUG___production_celeryworker
+    restart: unless-stopped
+    networks: [backend]
+    command: /start-celeryworker
+    healthcheck:
+      disable: true
+
+  celerybeat:
+    <<: *django
+    image: __PROJECT_SLUG___production_celerybeat
+    restart: unless-stopped
+    networks: [backend]
+    command: /start-celerybeat
+    healthcheck:
+      disable: true
+
+  flower:
+    <<: *django
+    image: __PROJECT_SLUG___production_flower
+    restart: unless-stopped
+    # no networks: here on purpose — inherits [backend, web] from *django
+    command: /start-flower
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          'import http.client; c=http.client.HTTPConnection("127.0.0.1",5555,timeout=5); c.request("GET","/healthcheck"); r=c.getresponse(); exit(0 if r.status<500 else 1)',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  awscli:
+    # One-shot maintenance container (DB backup upload/download). Behind a
+    # profile so it does NOT start on `docker compose up`; run on demand with:
+    #   docker compose -f docker-compose.production.yml run --rm awscli <cmd>
+    profiles:
+      - maintenance
+    build:
+      context: ./backend/
+      dockerfile: ./compose/production/aws/Dockerfile
+    env_file:
+      - ./backend/.envs/.production/.django
+    networks: [backend]   # one-shot; only needs the backups volume + S3 egress
+    volumes:
+      - production_postgres_data_backups:/backups:z
+
+  next:
+    build:
+      context: ./frontend/
+      dockerfile: ./compose/production/next/Dockerfile
+      args:
+        # NEXT_PUBLIC_* is inlined into the browser bundle at build time, so this is
+        # a build arg (not a runtime env). Override: export NEXT_PUBLIC_API_URL=...
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://__DOMAIN__/api}
+    image: __PROJECT_SLUG___production_next
+    env_file:
+      - ./frontend/.envs/.production/.next
+    restart: unless-stopped
+    networks: [web]
+    command: /start
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'const http=require("http"); const req=http.get({host:"127.0.0.1",port:3000,path:"/",timeout:5000},(res)=>process.exit(res.statusCode<500?0:1)); req.on("timeout",()=>{req.destroy();process.exit(1)}); req.on("error",()=>process.exit(1));',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # >>> TEMPLATE:MEDIA:NGINX <<<
+  # >>> TEMPLATE:MEDIA:NGINX:END <<<

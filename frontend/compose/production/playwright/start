@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# Smoke-test an already-deployed target. PLAYWRIGHT_TEST_BASE_URL (from the
+# env_file) points at staging or production and is read by playwright.config.
+exec pnpm exec playwright test "$@"

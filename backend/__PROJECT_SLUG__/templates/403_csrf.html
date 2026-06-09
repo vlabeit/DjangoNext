@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+{% comment %}
+Self-contained CSRF-failure page (Django's CSRF_FAILURE_VIEW template).
+Brand-neutral and self-contained like 404/403/500 (no base.html, no CDN, no
+project name) and never renders the CSRF reason/exception. Keeps a short,
+actionable message since this is usually a legitimate user whose token or
+session expired.
+{% endcomment %}
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>403: Forbidden.</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        color: #000;
+        background: #fff;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+      }
+
+      .code {
+        font-size: 24px;
+        font-weight: 500;
+        padding: 0 23px 0 0;
+        margin: 0;
+        border-right: 1px solid rgba(0, 0, 0, 0.3);
+        line-height: 49px;
+      }
+
+      .msg {
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 49px;
+        margin: 0 0 0 23px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <h1 class="code">403</h1>
+      <p class="msg">Your session may have expired. Go back, reload the page, and try again.</p>
+    </div>
+  </body>
+</html>

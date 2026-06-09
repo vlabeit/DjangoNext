@@ -1,0 +1,10 @@
+# Next.js (production)
+# ------------------------------------------------------------------------------
+NODE_ENV=production
+NEXT_TELEMETRY_DISABLED=1
+
+# With the bundled Traefik setup, your domain (example.com + www) routes to Next,
+# except /api (+ /media, /static, /admin) which route to Django — so the browser
+# can call the API with relative /api paths. Set NEXT_PUBLIC_API_URL only if you
+# serve the API from a separate host.
+SENTRY_DSN=

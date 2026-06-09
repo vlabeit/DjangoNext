@@ -1,0 +1,143 @@
+# Traefik DYNAMIC configuration: routers, services, middlewares, TLS options.
+# Single-host, path-based split:
+#   __DOMAIN__/admin                 -> Django  (rate-limited)
+#   __DOMAIN__ + www.__DOMAIN__/{api,static,media} -> Django
+#   __DOMAIN__ + www.__DOMAIN__                    -> Next.js (catch-all)
+#   localhost:5555 (127.0.0.1-only)  -> Flower  (dedicated entrypoint, basic-auth)
+# Django- and Next.js-routed responses share one security-headers middleware
+# (which also strips the backend Server header) so they aren't trivially
+# distinguishable by a prober.
+http:
+  routers:
+    # Django admin: a dedicated router so it can carry a rate limit (login
+    # brute-force mitigation) without throttling the API. Higher priority than
+    # the general Django router below.
+    django-admin-router:
+      rule: 'Host(`__DOMAIN__`) && PathPrefix(`/admin`)'
+      priority: 110
+      entryPoints:
+        - web-secure
+      middlewares:
+        - csrf
+        - security-headers
+        - admin-ratelimit
+      service: django
+      tls:
+        certResolver: letsencrypt
+        options: modern
+
+    # Django: API + Django-served static/media. Higher priority than the
+    # Next.js catch-all so these prefixes reach Django.
+    django-secure-router:
+      rule: '(Host(`__DOMAIN__`) || Host(`www.__DOMAIN__`)) && (PathPrefix(`/api`) || PathPrefix(`/static`) || PathPrefix(`/media`))'
+      priority: 100
+      entryPoints:
+        - web-secure
+      middlewares:
+        - csrf
+        - security-headers
+      service: django
+      tls:
+        certResolver: letsencrypt
+        options: modern
+
+    # Next.js frontend: everything else on the apex + www.
+    next-secure-router:
+      rule: 'Host(`__DOMAIN__`) || Host(`www.__DOMAIN__`)'
+      priority: 1
+      entryPoints:
+        - web-secure
+      middlewares:
+        - security-headers
+        - compress-gzip
+      service: next
+      tls:
+        certResolver: letsencrypt
+        options: modern
+
+    # Celery Flower on its dedicated entrypoint/port. That entrypoint is
+    # published only on 127.0.0.1 (see docker-compose.production.yml), so Flower
+    # is reachable solely from the host itself or an SSH tunnel — never the
+    # public internet. It therefore serves plain HTTP with no Host match (so
+    # http://localhost:5555 works directly / over a tunnel) and relies on
+    # Flower's basic auth for access control. A Host(`__DOMAIN__`)+TLS rule here
+    # would 404 every localhost request (no cert for 'localhost', Host mismatch).
+    # If you instead publish :5555 on 0.0.0.0 to expose Flower over the domain,
+    # restore `tls: { certResolver: letsencrypt }` and a `Host(`__DOMAIN__`)` rule.
+    flower-router:
+      rule: 'PathPrefix(`/`)'
+      entryPoints:
+        - flower
+      service: flower
+
+    # >>> TEMPLATE:MEDIA:ROUTER <<<
+    # >>> TEMPLATE:MEDIA:ROUTER:END <<<
+
+  middlewares:
+    csrf:
+      # https://docs.djangoproject.com/en/dev/ref/csrf/#ajax
+      headers:
+        hostsProxyHeaders: ['X-CSRFToken']
+
+    security-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        forceSTSHeader: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: strict-origin-when-cross-origin
+        customFrameOptionsValue: DENY
+        customResponseHeaders:
+          Permissions-Policy: 'camera=(), microphone=(), geolocation=()'
+          # Strip the backend Server header (e.g. 'uvicorn') so Django-routed
+          # responses don't advertise the stack; Next.js sends none, so this
+          # makes both backends look the same. Empty value removes the header.
+          Server: ''
+
+    compress-gzip:
+      compress:
+        excludedContentTypes:
+          - 'text/event-stream'
+
+    admin-ratelimit:
+      # Per-client-IP rate limit on the admin to blunt login brute-force.
+      # Generous for normal use; lower average/burst to tighten.
+      rateLimit:
+        average: 5
+        burst: 10
+
+  services:
+    django:
+      loadBalancer:
+        servers:
+          - url: http://django:5000
+
+    next:
+      loadBalancer:
+        servers:
+          - url: http://next:3000
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+
+    flower:
+      loadBalancer:
+        servers:
+          - url: http://flower:5555
+
+    # >>> TEMPLATE:MEDIA:SERVICE <<<
+    # >>> TEMPLATE:MEDIA:SERVICE:END <<<
+
+tls:
+  options:
+    modern:
+      minVersion: VersionTLS12
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305

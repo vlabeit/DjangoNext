@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# No --ds flag: install.py has zero Django dependencies.
+
+[tool.coverage.run]
+source = ["install"]
+include = ["install.py"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80

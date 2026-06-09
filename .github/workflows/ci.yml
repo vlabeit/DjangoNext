@@ -1,0 +1,137 @@
+name: CI
+
+# Enable Buildkit and let compose use it to speed up image building
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+on:
+  pull_request:
+    branches: ['main']
+    paths-ignore: ['docs/**']
+
+  push:
+    branches: ['main']
+    paths-ignore: ['docs/**']
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  linter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: 'backend/.python-version'
+
+      # >>> TEMPLATE:CI <<<
+      # Template-only: this whole step is deleted by install.py during bootstrap
+      # (it has no use in a generated project, whose CI runs the checks directly).
+      # The repo source contains placeholders (the literal __PROJECT_SLUG__/
+      # package, __TIMEZONE__, …) that the linters reject, so the template's own
+      # CI bootstraps it into a real project first and lints the actual output a
+      # user gets. The .template-marker guard is a belt-and-suspenders no-op in
+      # case the step ever survives into a bootstrapped project.
+      - name: Bootstrap template into a real project
+        run: |
+          if [ -f .template-marker ]; then
+            echo '{"project_name":"DjangoNext","project_slug":"djangonext","domain":"example.com","author_name":"Jane Doe","author_email":"jane@example.com","project_description":"A full-stack Django + Next.js app.","timezone":"UTC","media":"local","start":false,"destroy":false}' > "${RUNNER_TEMP}/ci-answers.json"
+            python3 install.py --yes --config "${RUNNER_TEMP}/ci-answers.json"
+            # Sync the git index with the bootstrapped tree so pre-commit's
+            # --all-files pass (which reads `git ls-files`) sees the renamed
+            # package directory instead of the now-deleted placeholder paths.
+            git add -A
+          else
+            echo "Project already bootstrapped — skipping."
+          fi
+      # >>> TEMPLATE:CI:END <<<
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.22.3'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint frontend
+        run: pnpm run lint
+
+      - name: Type-check frontend
+        run: pnpm run typecheck
+
+      - name: Build frontend
+        run: pnpm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+  # With no caching at all the entire ci process takes 3m to complete!
+  pytest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v6
+
+      # >>> TEMPLATE:CI <<<
+      # Template-only: deleted by install.py during bootstrap (see the linter
+      # job). Boots the template into a real project so Django loads real
+      # settings — placeholders like TIME_ZONE='__TIMEZONE__' and the
+      # __PROJECT_SLUG__ package would otherwise crash startup.
+      - name: Bootstrap template into a real project
+        run: |
+          if [ -f .template-marker ]; then
+            echo '{"project_name":"DjangoNext","project_slug":"djangonext","domain":"example.com","author_name":"Jane Doe","author_email":"jane@example.com","project_description":"A full-stack Django + Next.js app.","timezone":"UTC","media":"local","start":false,"destroy":false}' > "${RUNNER_TEMP}/ci-answers.json"
+            python3 install.py --yes --config "${RUNNER_TEMP}/ci-answers.json"
+          else
+            echo "Project already bootstrapped — skipping."
+          fi
+      # >>> TEMPLATE:CI:END <<<
+
+      - name: Create local env files
+        run: |
+          cp backend/.envs/.local/.django.example backend/.envs/.local/.django
+          cp backend/.envs/.local/.postgres.example backend/.envs/.local/.postgres
+          cp frontend/.envs/.local/.next.example frontend/.envs/.local/.next
+
+      # Plain `docker compose build` (BuildKit is enabled via the workflow env
+      # above). The previous docker/bake-action steps exported a type=gha build
+      # cache, which fails against GitHub's migrated cache backend and broke this
+      # job on every run. Building without that cache is slower but reliable.
+      - name: Build local backend and docs images
+        run: |
+          docker compose -f docker-compose.local.yml build django
+          docker compose -f docker-compose.docs.yml build
+
+      - name: Check DB Migrations
+        run: docker compose -f docker-compose.local.yml run --rm django python manage.py makemigrations --check
+
+      - name: Run DB Migrations
+        run: docker compose -f docker-compose.local.yml run --rm django python manage.py migrate
+
+      - name: Run Django Tests
+        run: docker compose -f docker-compose.local.yml run --rm django pytest
+
+      - name: Tear down the Stack
+        run: docker compose -f docker-compose.local.yml down

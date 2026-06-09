@@ -1,0 +1,9 @@
+# PostgreSQL
+# ------------------------------------------------------------------------------
+# Local-only credentials. Both the django and postgres containers read this file,
+# so any consistent values work for development.
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_DB=__PROJECT_SLUG__
+POSTGRES_USER=__PROJECT_SLUG__
+POSTGRES_PASSWORD=__PROJECT_SLUG__

@@ -1,0 +1,50 @@
+# Secrets — provided at runtime via compose env_file; never bake them into image layers
+.envs/
+
+# Python bytecode & tool caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments — the image builds its own via uv
+.venv/
+venv/
+
+# Local databases & collected static (regenerated in the image)
+*.sqlite3
+staticfiles/
+
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# CI / editor / dev tooling (not needed at runtime)
+.github
+.gitlab-ci.yml
+.travis.yml
+.editorconfig
+.pre-commit-config.yaml
+.readthedocs.yml
+.devcontainer
+.idea
+.vscode
+
+# Docs & readme (not needed at runtime)
+docs/
+README.md
+
+# AI / agent tooling (not needed at runtime)
+AGENTS.md
+AGENT.md
+CLAUDE.md
+GEMINI.md
+.claude/
+.cursor/
+.cursorrules
+.windsurfrules
+.aider*
+.github/copilot-instructions.md

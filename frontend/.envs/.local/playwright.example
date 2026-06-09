@@ -1,0 +1,8 @@
+# Playwright E2E runner (local Docker / compose)
+# ------------------------------------------------------------------------------
+NEXT_TELEMETRY_DISABLED=1
+CI=true
+# Target the Next service over the compose network (service name `next`).
+PLAYWRIGHT_TEST_BASE_URL=http://next:3000
+# Django API over the compose network, if tests hit it directly.
+API_BASE_URL=http://django:8000

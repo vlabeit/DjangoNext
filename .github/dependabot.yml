@@ -1,0 +1,91 @@
+# Config for Dependabot updates. See Documentation here:
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# NOTE: This is a monorepo — Dockerfiles live under backend/compose/** and
+# frontend/compose/**, and the Python project lives in backend/. Dependabot
+# `directories`/`directory` paths are relative to the repo root and must point
+# at those real locations or nothing gets watched.
+
+version: 2
+updates:
+  # Update GitHub actions in workflows
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    # Every weekday
+    schedule:
+      interval: 'daily'
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+
+  # Backend Python base images (uv / python). Patch-only: avoid auto major/minor
+  # bumps of the Python line (e.g. 3.14 -> 3.15).
+  - package-ecosystem: 'docker'
+    directories:
+      - 'backend/compose/local/django/'
+      - 'backend/compose/local/docs/'
+      - 'backend/compose/production/django/'
+    # Every weekday
+    schedule:
+      interval: 'daily'
+    # Ignore minor version updates (3.14 -> 3.15) but update patch versions
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - 'version-update:semver-major'
+          - 'version-update:semver-minor'
+    groups:
+      docker-python:
+        patterns:
+          - '*'
+
+  # Backend service images (postgres, traefik, aws-cli).
+  - package-ecosystem: 'docker'
+    directories:
+      - 'backend/compose/production/postgres/'
+      - 'backend/compose/production/traefik/'
+      - 'backend/compose/production/aws/'
+    # Every weekday
+    schedule:
+      interval: 'daily'
+
+  # Frontend Node base images (Next.js local + production).
+  - package-ecosystem: 'docker'
+    directories:
+      - 'frontend/compose/local/next/'
+      - 'frontend/compose/production/next/'
+    # Every weekday
+    schedule:
+      interval: 'daily'
+
+  # Compose files at the repo root (e.g. the redis image tag).
+  - package-ecosystem: 'docker-compose'
+    directories:
+      - '/'
+    # Every weekday
+    schedule:
+      interval: 'daily'
+
+  # Backend Python deps (uv) — pyproject.toml lives in backend/.
+  - package-ecosystem: 'uv'
+    directory: '/backend'
+    # Every weekday
+    schedule:
+      interval: 'daily'
+    groups:
+      python:
+        update-types:
+          - 'minor'
+          - 'patch'
+
+  # Frontend JS deps (pnpm) — package.json / pnpm-lock.yaml live in frontend/.
+  - package-ecosystem: 'npm'
+    directory: '/frontend'
+    # Every weekday
+    schedule:
+      interval: 'daily'
+    groups:
+      npm:
+        patterns:
+          - '*'

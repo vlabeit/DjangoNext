@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# Run the E2E suite against PLAYWRIGHT_TEST_BASE_URL (from the env_file), which
+# playwright.config consumes as `use: { baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL }`.
+# `depends_on` in compose waits for the `next` container to start; for true
+# readiness give `next` a healthcheck and use `condition: service_healthy`.
+exec pnpm exec playwright test "$@"

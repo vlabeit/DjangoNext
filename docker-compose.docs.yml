@@ -1,0 +1,17 @@
+services:
+  docs:
+    image: __PROJECT_SLUG___local_docs
+    container_name: __PROJECT_SLUG___local_docs
+    build:
+      context: ./backend/
+      dockerfile: ./compose/local/docs/Dockerfile
+    env_file:
+      - ./backend/.envs/.local/.django
+    volumes:
+      - /app/.venv
+      - ./backend/docs:/docs:z
+      - ./backend/config:/app/config:z
+      - ./backend/__PROJECT_SLUG__:/app/__PROJECT_SLUG__:z
+    ports:
+      - '9000:9000'
+    command: /start-docs

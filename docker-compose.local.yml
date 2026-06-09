@@ -1,0 +1,111 @@
+volumes:
+  __PROJECT_SLUG___local_postgres_data: {}
+  __PROJECT_SLUG___local_postgres_data_backups: {}
+  __PROJECT_SLUG___local_redis_data: {}
+
+services:
+  django: &django
+    build:
+      context: ./backend/
+      dockerfile: ./compose/local/django/Dockerfile
+    image: __PROJECT_SLUG___local_django
+    container_name: __PROJECT_SLUG___local_django
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - /app/.venv
+      - ./backend:/app:z
+    env_file:
+      - ./backend/.envs/.local/.django
+      - ./backend/.envs/.local/.postgres
+    ports:
+      - '8000:8000'
+    command: /start
+
+  postgres:
+    build:
+      context: ./backend/
+      dockerfile: ./compose/production/postgres/Dockerfile
+    image: __PROJECT_SLUG___local_postgres
+    container_name: __PROJECT_SLUG___local_postgres
+    volumes:
+      - __PROJECT_SLUG___local_postgres_data:/var/lib/postgresql/18/docker
+      - __PROJECT_SLUG___local_postgres_data_backups:/backups
+    env_file:
+      - ./backend/.envs/.local/.postgres
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: docker.io/redis:8.8.0
+    container_name: __PROJECT_SLUG___local_redis
+    volumes:
+      - __PROJECT_SLUG___local_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  celeryworker:
+    <<: *django
+    image: __PROJECT_SLUG___local_celeryworker
+    container_name: __PROJECT_SLUG___local_celeryworker
+    ports: []
+    command: /start-celeryworker
+
+  celerybeat:
+    <<: *django
+    image: __PROJECT_SLUG___local_celerybeat
+    container_name: __PROJECT_SLUG___local_celerybeat
+    ports: []
+    command: /start-celerybeat
+
+  flower:
+    <<: *django
+    image: __PROJECT_SLUG___local_flower
+    container_name: __PROJECT_SLUG___local_flower
+    ports:
+      - '5555:5555'
+    command: /start-flower
+
+  next:
+    build:
+      context: ./frontend/
+      dockerfile: ./compose/local/next/Dockerfile
+    image: __PROJECT_SLUG___local_next
+    container_name: __PROJECT_SLUG___local_next
+    volumes:
+      - /app/node_modules
+      - ./frontend:/app:z
+    env_file:
+      - ./frontend/.envs/.local/.next
+    ports:
+      - '3000:3000'
+    command: /start
+
+  # Playwright E2E runner (opt-in). Uncomment once `@playwright/test` and a
+  # playwright.config are added to the frontend, then run on demand with:
+  #   docker compose -f docker-compose.local.yml run --rm playwright
+  # playwright:
+  #   build:
+  #     context: ./frontend/
+  #     dockerfile: ./compose/local/playwright/Dockerfile
+  #   image: __PROJECT_SLUG___local_playwright
+  #   container_name: __PROJECT_SLUG___local_playwright
+  #   depends_on:
+  #     # local `next` has no healthcheck, so this only waits for the container to
+  #     # start. Give it a healthcheck and switch to service_healthy for real readiness.
+  #     next:
+  #       condition: service_started
+  #   volumes:
+  #     - /app/node_modules
+  #     - ./frontend:/app:z
+  #   env_file:
+  #     - ./frontend/.envs/.local/playwright

@@ -1,0 +1,7 @@
+# Playwright E2E runner (production / CI smoke tests)
+# ------------------------------------------------------------------------------
+# Keep DB/secret values OUT of this file — it is only for Playwright.
+NEXT_TELEMETRY_DISABLED=1
+CI=true
+# Deployed target the smoke tests run against (override per environment).
+PLAYWRIGHT_TEST_BASE_URL=https://example.com

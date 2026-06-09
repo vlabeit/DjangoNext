@@ -1,0 +1,28 @@
+# General
+# ------------------------------------------------------------------------------
+USE_DOCKER=yes
+IPYTHONDIR=/app/.ipython
+# Redis
+# ------------------------------------------------------------------------------
+REDIS_URL=redis://redis:6379/0
+
+# Celery
+# ------------------------------------------------------------------------------
+
+# Flower
+# Local-only basic-auth for the Flower dashboard. Any values are fine for dev.
+CELERY_FLOWER_USER=debug
+CELERY_FLOWER_PASSWORD=debug
+
+# Sentry
+# ------------------------------------------------------------------------------
+# Leave blank to disable Sentry locally.
+SENTRY_DSN=
+
+# Gunicorn
+# ------------------------------------------------------------------------------
+# WEB_CONCURRENCY=4
+
+# django-allauth
+# ------------------------------------------------------------------------------
+DJANGO_ACCOUNT_ALLOW_REGISTRATION=True

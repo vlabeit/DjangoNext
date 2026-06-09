@@ -1,0 +1,61 @@
+# General
+# ------------------------------------------------------------------------------
+# DJANGO_READ_DOT_ENV_FILE=True
+DJANGO_SETTINGS_MODULE=config.settings.production
+DJANGO_SECRET_KEY=CHANGE_ME__generate_a_long_random_secret
+# Obscure the admin path: keep the "admin/" prefix (so Traefik routes it to
+# Django) plus a random slug, ending in "/". The random part is the real
+# protection; bare /admin/ returns a 404.
+DJANGO_ADMIN_URL=admin/CHANGE_ME_random_slug/
+DJANGO_ALLOWED_HOSTS=example.com,www.example.com
+
+# Security
+# ------------------------------------------------------------------------------
+# TIP: better off using DNS, however, redirect is OK too
+DJANGO_SECURE_SSL_REDIRECT=False
+
+# Cross-origin (CORS) and CSRF trusted origins
+# ------------------------------------------------------------------------------
+# The bundled Traefik setup serves the site and the API under ONE origin, so the
+# API is same-origin and needs NEITHER of these. Set them ONLY if an API client
+# lives on a different origin (separate frontend host, native app). Comma-
+# separated, full origins WITH scheme. Note: uncommenting CSRF below REPLACES the
+# built-in default (this project's apex + www) — list every origin you need.
+# DJANGO_CSRF_TRUSTED_ORIGINS=https://example.com,https://www.example.com,https://app.example.com
+# DJANGO_CORS_ALLOWED_ORIGINS=https://app.example.com
+
+# Email
+# ------------------------------------------------------------------------------
+DJANGO_SERVER_EMAIL=
+MAILGUN_API_KEY=
+MAILGUN_DOMAIN=
+
+# AWS
+# ------------------------------------------------------------------------------
+DJANGO_AWS_ACCESS_KEY_ID=
+DJANGO_AWS_SECRET_ACCESS_KEY=
+DJANGO_AWS_STORAGE_BUCKET_NAME=
+
+# django-allauth
+# ------------------------------------------------------------------------------
+DJANGO_ACCOUNT_ALLOW_REGISTRATION=True
+
+# Gunicorn
+# ------------------------------------------------------------------------------
+WEB_CONCURRENCY=4
+
+# Sentry
+# ------------------------------------------------------------------------------
+# Leave blank to disable Sentry. Set to a real DSN to enable.
+SENTRY_DSN=
+
+# Redis
+# ------------------------------------------------------------------------------
+REDIS_URL=redis://redis:6379/0
+
+# Celery
+# ------------------------------------------------------------------------------
+
+# Flower
+CELERY_FLOWER_USER=CHANGE_ME
+CELERY_FLOWER_PASSWORD=CHANGE_ME

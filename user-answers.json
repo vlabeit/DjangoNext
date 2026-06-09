@@ -1,0 +1,12 @@
+{
+  "project_name": "DjangoNext",
+  "project_slug": "djangonext",
+  "domain": "example.com",
+  "author_name": "Jane Doe",
+  "author_email": "jane@example.com",
+  "project_description": "A full-stack Django + Next.js app.",
+  "timezone": "UTC",
+  "media": "local",
+  "start": "dev",
+  "destroy": false
+}
