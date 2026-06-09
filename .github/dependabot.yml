@@ -85,6 +85,14 @@ updates:
     # Every weekday
     schedule:
       interval: 'daily'
+    # eslint-config-next 16.2.7 bundles eslint-plugin-react 7.37.5, whose peer
+    # range caps at eslint ^9.7. Bumping eslint to 10.x is an unresolvable peer
+    # conflict (it fails the Dependabot update and breaks `pnpm run lint`), so
+    # stay on the 9.x line until eslint-config-next ships a compatible plugin.
+    ignore:
+      - dependency-name: 'eslint'
+        update-types:
+          - 'version-update:semver-major'
     groups:
       npm:
         patterns:
