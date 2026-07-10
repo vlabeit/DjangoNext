@@ -1,4 +1,4 @@
-FROM docker.io/node:26.3.0-bookworm-slim AS deps
+FROM docker.io/node:26.5.0-bookworm-slim AS deps
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ RUN npm install -g pnpm@10.34.1
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-FROM docker.io/node:26.3.0-bookworm-slim AS builder
+FROM docker.io/node:26.5.0-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -30,7 +30,7 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN pnpm run build
 
-FROM docker.io/node:26.3.0-bookworm-slim AS runner
+FROM docker.io/node:26.5.0-bookworm-slim AS runner
 
 WORKDIR /app
 
