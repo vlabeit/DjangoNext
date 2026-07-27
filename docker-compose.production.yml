@@ -92,7 +92,7 @@ services:
       - '127.0.0.1:5555:5555'
 
   redis:
-    image: docker.io/redis:8.8.0
+    image: docker.io/redis:8.8.1
     restart: unless-stopped
     volumes:
       - production_redis_data:/data
