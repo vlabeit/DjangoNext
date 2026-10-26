@@ -1,4 +1,4 @@
-FROM docker.io/traefik:v3.7.10
+FROM docker.io/traefik:v3.7.16
 
 # ACME email is baked into traefik.yml at build time.
 # No default here — supplied as a build arg by
